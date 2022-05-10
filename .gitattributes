@@ -1,6 +1,0 @@
-ReadMe.txt filter=lfs diff=lfs merge=lfs -text
-I.csv filter=lfs diff=lfs merge=lfs -text
-II.csv filter=lfs diff=lfs merge=lfs -text
-III.csv filter=lfs diff=lfs merge=lfs -text
-IV.csv filter=lfs diff=lfs merge=lfs -text
-ReadMe.md filter=lfs diff=lfs merge=lfs -text
