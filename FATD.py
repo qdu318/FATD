@@ -11,7 +11,7 @@ from .util.functions import fit_ar_ma, svd_init
 
 class FATD(object):
     
-    def __init__(self,ts, p, d, q,s,P,Q, Rs, K, tol, seed=None, Us_mode=4, \
+    def __init__(self,ts, p, d, q,s,P,Q, Rs, K, tol, seed=None, Ms_mode=4, \
         verbose=0, convergence_loss=False):
         """store all parameters in the class and do checking on taus"""
         
@@ -29,7 +29,7 @@ class FATD(object):
         self._Rs = Rs
         self._K = K
         self._tol = tol
-        self._Us_mode = Us_mode
+        self._Ms_mode = Ms_mode
         self._verbose = verbose
         self._convergence_loss = convergence_loss
         
@@ -40,8 +40,8 @@ class FATD(object):
     
     def _initilizer(self, T_hat, Js, Rs, Xs):
         
-        # initilize Us
-        U = [ np.random.random([j,r]) for j,r in zip( list(Js), Rs )]
+        # initilize Ms
+        M = [ np.random.random([j,r]) for j,r in zip( list(Js), Rs )]
 
         # initilize es
 
@@ -54,23 +54,23 @@ class FATD(object):
         thet=[  random.random()   for i in range(self._Q)]
         # gamma[0]=0.001
         # alpha[0]=0.001
-        return U, es,alpha, beta, gamma, thet
+        return M, es,alpha, beta, gamma, thet
 
     def _test_initilizer(self, trans_data, Rs):
         
         T_hat = trans_data.shape[-1]
-        # initilize Us
-        U = [ np.random.random([j,r]) for j,r in zip( list(trans_data.shape)[:-1], Rs )]
+        # initilize Ms
+        M = [ np.random.random([j,r]) for j,r in zip( list(trans_data.shape)[:-1], Rs )]
 
         # initilize es
         begin_idx = s*self._P + s*self._Q  
         # es = [ [ np.zeros(Rs) for _ in range(self._q)] for t in range(begin_idx, T_hat)]
 
         es = [np.zeros(Rs) for t in range(T_hat)]
-        return U, es
+        return M, es
 
     
-    def _initilize_U(self, T_hat, Xs, Rs):
+    def _initilize_M(self, T_hat, Xs, Rs):
 
         haveNan = True
         while haveNan:
@@ -81,9 +81,9 @@ class FATD(object):
     # def _inverse_MDT(self, mdt, data, taus, shape):
     #     return mdt.inverse(data, taus, shape)
     
-    def _get_cores(self, Xs, Us):
-        s=[u.T for u in Us]
-        cores = [ tl.tenalg.multi_mode_dot( x, [u.T for u in Us], modes=[i for i in range(len(Us))] ) for x in Xs]
+    def _get_cores(self, Xs, Ms):
+        s=[u.T for u in Ms]
+        cores = [ tl.tenalg.multi_mode_dot( x, [u.T for u in Ms], modes=[i for i in range(len(Ms))] ) for x in Xs]
         return cores
     
     def _estimate_ar_ma(self, cores, p, q):
@@ -122,19 +122,19 @@ class FATD(object):
         else:
             raise TypeError(" 'tensor' need to be a list or numpy.ndarray")   
 
-    def _update_Us(self, Us, Xs, unfold_cores, n):
+    def _update_Ms(self, Ms, Xs, unfold_cores, n):
 
         T_hat = len(Xs)
-        M = len(Us)
+        M = len(Ms)
         begin_idx = self._p + self._q
 
         # s=self._s
         # begin_idx = s*self._P + s*self._Q
 
 
-        H = self._get_H(Us, n)
+        H = self._get_H(Ms, n)
         # orth in J3
-        if self._Us_mode == 1:
+        if self._Ms_mode == 1:
             if n<M-1:
                 As = []
                 Bs = []
@@ -145,25 +145,25 @@ class FATD(object):
                 a = sp.linalg.pinv(np.sum(As, axis=0))
                 b = np.sum(Bs, axis=0)
                 temp = np.dot(a, b)
-                Us[n] = temp / np.linalg.norm(temp)
+                Ms[n] = temp / np.linalg.norm(temp)
             else:
                 Bs = []
                 for t in range(begin_idx, T_hat):
                     unfold_X = self._get_unfold_tensor(Xs[t], n)
                     Bs.append(np.dot(np.dot(unfold_X, H.T), unfold_cores[t].T))
                 b = np.sum(Bs, axis=0)
-                U_, _, V_ = np.linalg.svd(b, full_matrices=False)
-                Us[n] = np.dot(U_, V_)
+                M_, _, V_ = np.linalg.svd(b, full_matrices=False)
+                Ms[n] = np.dot(M_, V_)
         # orth in J1 J2
-        elif self._Us_mode == 2:
+        elif self._Ms_mode == 2:
             if n<M-1:
                 Bs = []
                 for t in range(begin_idx, T_hat):
                     unfold_X = self._get_unfold_tensor(Xs[t], n)
                     Bs.append(np.dot(np.dot(unfold_X, H.T), unfold_cores[t].T))
                 b = np.sum(Bs, axis=0)
-                U_, _, V_ = np.linalg.svd(b, full_matrices=False)
-                Us[n] = np.dot(U_, V_)
+                M_, _, V_ = np.linalg.svd(b, full_matrices=False)
+                Ms[n] = np.dot(M_, V_)
             else:
                 As = []
                 Bs = []
@@ -174,9 +174,9 @@ class FATD(object):
                 a = sp.linalg.pinv(np.sum(As, axis=0))
                 b = np.sum(Bs, axis=0)
                 temp = np.dot(a, b)
-                Us[n] = temp / np.linalg.norm(temp)
+                Ms[n] = temp / np.linalg.norm(temp)
         # no orth      
-        elif self._Us_mode == 3:
+        elif self._Ms_mode == 3:
             As = []
             Bs = []
             for t in range(begin_idx, T_hat):
@@ -186,43 +186,29 @@ class FATD(object):
             a = sp.linalg.pinv(np.sum(As, axis=0))
             b = np.sum(Bs, axis=0)
             temp = np.dot(a, b)
-            Us[n] = temp / np.linalg.norm(temp)
-        # all orth   完全正交
-        elif self._Us_mode == 4:
+            Ms[n] = temp / np.linalg.norm(temp)
+        # all orth   
+        elif self._Ms_mode == 4:
             Bs = []
             for t in range(begin_idx, T_hat):
                 unfold_X = self._get_unfold_tensor(Xs[t], n)
                 Bs.append(np.dot(np.dot(unfold_X, H.T), unfold_cores[t].T))
             b = np.sum(Bs, axis=0)
-
-            # has_infs = np.isinf(b).any()
-            # print("是否存在无穷大（infs）:", has_infs)
-            #
-            # # 检查是否存在非数值（NaNs）
-            # has_nans = np.isnan(b).any()
-            # print("是否存在非数值（NaNs）:", has_nans)
-            # # 找到数组中的NaN元素的索引
-            # nan_indices = np.isnan(b)
-            #
-            # # 输出NaN元素的索引
-            # nan_indices = np.where(nan_indices)[0]
-            # print("NaN元素的索引:", nan_indices)
-
             # b = b.replace(np.inf, np.nan).replace(-np.inf, np.nan).dropna()
             b=np.array(b)
-            U_, _, V_ = svd(b, full_matrices=False)
-            Us[n] = np.dot(U_, V_)
+            M_, _, V_ = svd(b, full_matrices=False)
+            Ms[n] = np.dot(M_, V_)
         # only orth in J1
 
-        elif self._Us_mode == 5:
+        elif self._Ms_mode == 5:
             if n==0:
                 Bs = []
                 for t in range(begin_idx, T_hat):
                     unfold_X = self._get_unfold_tensor(Xs[t], n)
                     Bs.append(np.dot(np.dot(unfold_X, H.T), unfold_cores[t].T))
                 b = np.sum(Bs, axis=0)
-                U_, _, V_ = np.linalg.svd(b, full_matrices=False)
-                Us[n] = np.dot(U_, V_)
+                M_, _, V_ = np.linalg.svd(b, full_matrices=False)
+                Ms[n] = np.dot(M_, V_)
             else:
                 As = []
                 Bs = []
@@ -233,17 +219,17 @@ class FATD(object):
                 a = sp.linalg.pinv(np.sum(As, axis=0))
                 b = np.sum(Bs, axis=0)
                 temp = np.dot(a, b)
-                Us[n] = temp / np.linalg.norm(temp)
+                Ms[n] = temp / np.linalg.norm(temp)
         # only orth in J2
-        elif self._Us_mode == 6:
+        elif self._Ms_mode == 6:
             if n==1:
                 Bs = []
                 for t in range(begin_idx, T_hat):
                     unfold_X = self._get_unfold_tensor(Xs[t], n)
                     Bs.append(np.dot(np.dot(unfold_X, H.T), unfold_cores[t].T))
                 b = np.sum(Bs, axis=0)
-                U_, _, V_ = np.linalg.svd(b, full_matrices=False)
-                Us[n] = np.dot(U_, V_)
+                M_, _, V_ = np.linalg.svd(b, full_matrices=False)
+                Ms[n] = np.dot(M_, V_)
             else:
                 As = []
                 Bs = []
@@ -254,8 +240,8 @@ class FATD(object):
                 a = sp.linalg.pinv(np.sum(As, axis=0))
                 b = np.sum(Bs, axis=0)
                 temp = np.dot(a, b)
-                Us[n] = temp / np.linalg.norm(temp)
-        return Us
+                Ms[n] = temp / np.linalg.norm(temp)
+        return Ms
 
     def _update_Es(self, es, alpha, beta, unfold_cores, i, n):
 
@@ -391,12 +377,12 @@ class FATD(object):
 
         return es
 
-    def _update_cores(self, n, Us, Xs, es, cores, alpha, beta, lam=1):
+    def _update_cores(self, n, Ms, Xs, es, cores, alpha, beta, lam=1):
         s=self._s
         begin_idx = self._p + self._q
         T_hat = len(Xs)
         unfold_cores = self._get_unfold_tensor(cores, n)
-        H = self._get_H(Us, n)  # U(-m).T
+        H = self._get_H(Ms, n)  # M(-m).T
         for t in range(begin_idx, T_hat):
             unfold_Xs = self._get_unfold_tensor(Xs[t], n)
             a = np.sum([alpha[i] * self._get_unfold_tensor(cores[t - (i + 1)], n) for i in range(self._p)], axis=0)
@@ -404,16 +390,16 @@ class FATD(object):
             b = np.sum([beta[i] * self._get_unfold_tensor(es[:t][-(i + 1)], n) for i in range(self._q)],
                        axis=0)  #
 
-            unfold_cores[t] = 1 / (1 + lam) * (lam * np.dot(np.dot(Us[n].T, unfold_Xs), H.T) + a - b )
+            unfold_cores[t] = 1 / (1 + lam) * (lam * np.dot(np.dot(Ms[n].T, unfold_Xs), H.T) + a - b )
         return unfold_cores
 
 
-    def update_cores(self, n, Us, Xs, es, cores, alpha, beta, gamma, thet, lam=1):
+    def update_cores(self, n, Ms, Xs, es, cores, alpha, beta, gamma, thet, lam=1):
         s=self._s
         begin_idx = s*self._P + s*self._Q
         T_hat = len(Xs)
         unfold_cores = self._get_unfold_tensor(cores, n)
-        H = self._get_H(Us, n)  # U(-m).T
+        H = self._get_H(Ms, n)  # M(-m).T
         for t in range(begin_idx, T_hat):
             unfold_Xs = self._get_unfold_tensor(Xs[t], n)
             a = np.sum([alpha[i] * self._get_unfold_tensor(cores[t - (i + 1)], n) for i in range(self._p)], axis=0)
@@ -423,16 +409,16 @@ class FATD(object):
             c = np.sum([gamma[ii] * self._get_unfold_tensor(cores[t - (s*ii + 1)], n) for ii in range(self._P)], axis=0)
             d = np.sum(
                 [thet[j] * self._get_unfold_tensor(es[:t][-(s * j + 1)], n) for j in range(self._Q)], axis=0)
-            unfold_cores[t] = 1 / (1 + lam) * (lam * np.dot(np.dot(Us[n].T, unfold_Xs), H.T) + a - b + c - d)
+            unfold_cores[t] = 1 / (1 + lam) * (lam * np.dot(np.dot(Ms[n].T, unfold_Xs), H.T) + a - b + c - d)
         return unfold_cores
 
 
-    def _compute_convergence(self, new_U, old_U):
+    def _compute_convergence(self, new_M, old_M):
         
-        new_old = [ n-o for n, o in zip(new_U, old_U)]
+        new_old = [ n-o for n, o in zip(new_M, old_M)]
         
         a = np.sum([np.sqrt(tl.tenalg.inner(e,e)) for e in new_old], axis=0)
-        b = np.sum([np.sqrt(tl.tenalg.inner(e,e)) for e in new_U], axis=0)
+        b = np.sum([np.sqrt(tl.tenalg.inner(e,e)) for e in new_M], axis=0)
         return a/b
     
     def _tensor_difference(self, d, tensors, axis):
@@ -496,17 +482,17 @@ class FATD(object):
          
         return re_tensors
     
-    # def _update_cores(self, n, Us, Xs, es, cores, alpha, beta, lam=1):
+    # def _update_cores(self, n, Ms, Xs, es, cores, alpha, beta, lam=1):
     #
     #     begin_idx = self._p + self._q
     #     T_hat = len(Xs)
     #     unfold_cores = self._get_unfold_tensor(cores, n)
-    #     H = self._get_H(Us, n)  #U(-m).T
+    #     H = self._get_H(Ms, n)  #M(-m).T
     #     for t in range(begin_idx, T_hat):
     #         unfold_Xs = self._get_unfold_tensor(Xs[t], n)
     #         b = np.sum([ beta[i] * self._get_unfold_tensor(es[:t][-(i+1)], n) for i in range(self._q)], axis=0) #t-begin_index  ?? t-(i+1)
     #         a = np.sum([ alpha[i] * self._get_unfold_tensor(cores[t-(i+1)], n) for i in range(self._p)], axis=0 )
-    #         unfold_cores[t] = 1/(1+lam) * (lam * np.dot( np.dot(Us[n].T, unfold_Xs), H.T) + a - b)
+    #         unfold_cores[t] = 1/(1+lam) * (lam * np.dot( np.dot(Ms[n].T, unfold_Xs), H.T) + a - b)
     #     return unfold_cores
 
     def _get_Xs(self, trans_data):
@@ -516,9 +502,9 @@ class FATD(object):
 
         return Xs
 
-    def _get_H(self, Us, n): #U(-m).T
-        ab=Us[::-1]
-        Hs = tl.tenalg.kronecker([u.T for u, i in zip(Us[::-1], reversed(range(len(Us)))) if i!= n ])
+    def _get_H(self, Ms, n): #M(-m).T
+        ab=Ms[::-1]
+        Hs = tl.tenalg.kronecker([u.T for u, i in zip(Ms[::-1], reversed(range(len(Ms)))) if i!= n ])
         return Hs
     
     def run(self):
@@ -555,36 +541,36 @@ class FATD(object):
         con_loss = []
 
         # Step 2
-        # initialize Us
-        Us, es,alpha, beta, gamma, thet = self._initilizer(len(Xs), Xs[0].shape, self._Rs, Xs)
+        # initialize Ms
+        Ms, es,alpha, beta, gamma, thet = self._initilizer(len(Xs), Xs[0].shape, self._Rs, Xs)
 
         for k in range(self._K):
 
-            old_Us = Us.copy()
+            old_Ms = Ms.copy()
             # get cores
-            cores = self._get_cores(Xs, Us)
+            cores = self._get_cores(Xs, Ms)
 
             # # estimate the coefficients of AR and MA model
             # alpha, beta = self._estimate_ar_ma(cores, self._p, self._q)
             # for n in range(len(self._Rs)):    #mode n
             #
             #     cores_shape = cores[0].shape
-            #     unfold_cores = self._update_cores(n, Us, Xs, es, cores, alpha, beta , lam=1)
+            #     unfold_cores = self._update_cores(n, Ms, Xs, es, cores, alpha, beta , lam=1)
             #     cores = self._get_fold_tensor(unfold_cores, n, cores_shape)
-            #     # update Us
-            #     Us = self._update_Us(Us, Xs, unfold_cores, n)
+            #     # update Ms
+            #     Ms = self._update_Ms(Ms, Xs, unfold_cores, n)
             #     for i in range(self._q):
             #         # update Es
             #         es = self._update_Es(es, alpha, beta,   unfold_cores, i, n)
             # alpha, beta = self._estimate_ar_ma(cores, self._p, self._q)
             for n in range(len(self._Rs)):  # mode n
-                # print(f"{k}轮，{n}阶展开")
-                cores_shape = cores[0].shape
-                unfold_cores = self.update_cores(n, Us, Xs, es, cores, alpha, beta, gamma, thet, lam=1)
-                cores = self._get_fold_tensor(unfold_cores, n, cores_shape)
-                # update Us
 
-                Us = self._update_Us(Us, Xs, unfold_cores, n)
+                cores_shape = cores[0].shape
+                unfold_cores = self.update_cores(n, Ms, Xs, es, cores, alpha, beta, gamma, thet, lam=1)
+                cores = self._get_fold_tensor(unfold_cores, n, cores_shape)
+                # update Ms
+
+                Ms = self._update_Ms(Ms, Xs, unfold_cores, n)
 
                 for i in range(self._q):
                     # update Es
@@ -594,7 +580,7 @@ class FATD(object):
 
 
             # convergence check:
-            convergence = self._compute_convergence(Us, old_Us)
+            convergence = self._compute_convergence(Ms, old_Ms)
             con_loss.append(convergence)
 
             if k%2 == 0:
@@ -611,7 +597,7 @@ class FATD(object):
 
         # Step 3: Forecasting
         #get cores
-        cores = self._get_cores(Xs, Us)
+        cores = self._get_cores(Xs, Ms)
 
 
         alpha, beta = self._estimate_ar_ma(cores, self._p, self._q)
@@ -633,7 +619,7 @@ class FATD(object):
         # new_core =new_core+  np.sum([gam * core for gam, core in zip(gamma, cores)], axis=0) \
         #            - np.sum([the * e for the, e in zip(thet, es)], axis=0)
 
-        new_X = tl.tenalg.multi_mode_dot(new_core, Us)
+        new_X = tl.tenalg.multi_mode_dot(new_core, Ms)
         Xs.append(new_X)
 
         if self._d != 0:
