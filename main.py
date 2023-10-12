@@ -31,12 +31,12 @@ if __name__ == "__main__":
     Rs = [5,5] # tucker decomposition ranks
     k =  10 # iterations
     tol = 0.001 # stop criterion
-    Us_mode = 4 # orthogonality mode
+    Ms_mode = 4 # orthogonality mode
 
     # Run program
     # result's shape: (I
     # TEM, TIME+1) ** only one step forecasting **
-    model = FATD(ts, p, d, q,s,P,Q, Rs, k, tol, verbose=1, Us_mode=Us_mode)
+    model = FATD(ts, p, d, q,s,P,Q, Rs, k, tol, verbose=1, Ms_mode=Ms_mode)
     result, _ = model.run()
     pred = result
 
