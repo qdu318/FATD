@@ -153,12 +153,12 @@ def update_Es(self, es, alpha, beta,gamma, thet, unfold_cores, i, n,s):
         es[t][i] = self._get_fold_tensor(E / (2 * (begin_idx - T_hat) * beta[i]), n, es[t][i].shape)
     return es
 
-def _update_cores(self, n, Us, Xs, es, cores, alpha, beta,gamma, thet, lam=1):
+def _update_cores(self, n, Ms, Xs, es, cores, alpha, beta,gamma, thet, lam=1):
 
     begin_idx = self._p + self._q
     T_hat = len(Xs)
     unfold_cores = self._get_unfold_tensor(cores, n)
-    H = self._get_H(Us, n)  #U(-m).T
+    H = self._get_H(Ms, n)  #M(-m).T
     for t in range(begin_idx, T_hat):
         unfold_Xs = self._get_unfold_tensor(Xs[t], n)
         a = np.sum([alpha[i] * self._get_unfold_tensor(cores[t - (i + 1)], n) for i in range(self._p)], axis=0)
@@ -167,7 +167,7 @@ def _update_cores(self, n, Us, Xs, es, cores, alpha, beta,gamma, thet, lam=1):
         d = np.sum(
             [thet[j] * self._get_unfold_tensor(es[:t][-(s * j + 1)], n) for j in range(self._Q)], axis=0)
 
-        unfold_cores[t] = 1/(1+lam) * (lam * np.dot( np.dot(Us[n].T, unfold_Xs), H.T) + a - b+c-d)
+        unfold_cores[t] = 1/(1+lam) * (lam * np.dot( np.dot(Ms[n].T, unfold_Xs), H.T) + a - b+c-d)
     return unfold_cores
 
 
